@@ -102,3 +102,78 @@ podman run --rm --name sbsd-account-manager -p 8080:8080 \
   -e ENDPOINT_PARTY_DATA_URL="${ENDPOINT_SAVINGS_ACCOUNT_URL}" \
   sbsd-account-manager:1.0.0
 ```
+
+```bash
+REGISTRY="default-route-openshift-image-registry.apps.cluster-dljqk.dljqk.sandbox1321.opentlc.com"
+podman login -u $(oc whoami) -p $(oc whoami -t) ${REGISTRY}
+podman push sbsd-account-manager:1.0.0 ${REGISTRY}/dev-mesh/sbsd-account-manager:1.0.0
+```
+
+```yaml
+apiVersion: v1
+kind: List
+metadata: {}
+items:
+  - kind: ConfigMap
+    apiVersion: v1
+    metadata:
+      name: sbsd-account-manager
+      namespace: dev-mesh
+    data:
+      ENDPOINT_SAVINGS_ACCOUNT_URL: "http://host.docker.internal:3001/api/proxy/v1.0/prometeus/savings-account"
+      ENDPOINT_CURRENT_ACCOUNT_URL: "http://host.docker.internal:3001/api/proxy/v1.0/prometeus/current-account"
+      ENDPOINT_PARTY_DATA_URL: "http://host.docker.internal:3001/api/proxy/v1.0/prometeus/party-lifecycle-management"
+
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: sbsd-account-manager
+      namespace: dev-mesh
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: sbsd-account-manager
+      template:
+        metadata:
+          name: sbsd-account-manager
+          labels:
+            app: sbsd-account-manager
+        spec:
+          containers:
+            - name: sbsd-account-manager
+              image: "image-registry.openshift-image-registry.svc:5000/dev-mesh/sbsd-account-manager:1.0.0"
+              imagePullPolicy: Always
+              envFrom:
+                - configMapRef:
+                    name: sbsd-account-manager
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: sbsd-account-manager
+      namespace: dev-mesh
+    spec:
+      selector:
+        app: sbsd-account-manager
+      type: ClusterIP
+      ports:
+        - name: 8080-http
+          port: 8080
+          targetPort: 8080
+
+  - kind: Route
+    apiVersion: route.openshift.io/v1
+    metadata:
+      name: sbsd-account-manager
+      namespace: dev-mesh
+    spec:
+      to:
+        kind: Service
+        name: sbsd-account-manager
+      port:
+        targetPort: 8080-http
+      tls:
+        termination: edge
+        insecureEdgeTerminationPolicy: Redirect
+      wildcardPolicy: None
+```
