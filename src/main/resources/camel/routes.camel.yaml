@@ -1,0 +1,243 @@
+- rest:
+    get:
+      - path: /api/bs/v1.0/account-management/third-party-account-inquiry/{accountNumber}/retrieve
+        to: direct:start
+        produces: application/json
+
+- route:
+    id: start-route
+    from:
+      uri: direct:start
+      steps:
+        - choice:
+            when:
+              - simple: "${header.x-correlation-id} == null || ${header.x-correlation-id} == ''"
+                steps:
+                  - setBody:
+                      constant: '{"status": 400, "title": "Bad Request", "detail": "Missing required header: x-correlation-id"}'
+                  - setHeader:
+                      name: CamelHttpResponseCode
+                      constant: "400"
+                  - setHeader:
+                      name: Content-Type
+                      constant: application/json
+                  - stop: {}
+
+        - choice:
+            when:
+              - simple: "${header.accountNumber} == null || ${header.accountNumber} !regex '^[0-9]{1,18}$'"
+                steps:
+                  - setBody:
+                      constant: '{"status": 400, "title": "Bad Request", "detail": "Account number must be a string of 1-18 numeric digits"}'
+                  - setHeader:
+                      name: CamelHttpResponseCode
+                      constant: "400"
+                  - setHeader:
+                      name: Content-Type
+                      constant: application/json
+                  - stop: {}
+
+        - setProperty:
+            name: accountNumber
+            simple: "${header.accountNumber}"
+
+        # Primero al SD saving account
+        - to: direct:savings-account
+
+        - choice:
+            when:
+              - simple: "${exchangeProperty.accountFound} != true"
+                steps:
+                  - to: direct:current-account
+
+        # Si no encuentra return 404
+        - choice:
+            when:
+              - simple: "${exchangeProperty.accountFound} != true"
+                steps:
+                  - setBody:
+                      constant: '{"status": 404, "title": "Not Found", "detail": "Account not found"}'
+                  - setHeader:
+                      name: CamelHttpResponseCode
+                      constant: "404"
+                  - setHeader:
+                      name: Content-Type
+                      constant: application/json
+                  - stop: {}
+
+        # Si encuentra, invoca el SD Party Directory
+        - to: direct:party-directory
+
+        # Construye respuesta con el archivo de groovy
+        - script:
+            groovy: "resource:classpath:aggregation.groovy"
+
+        - marshal:
+            json:
+              library: Jackson
+
+        - log: "RESPONSE BODY (JSON) => ${body}"
+
+        - setHeader:
+            name: CamelHttpContentType
+            constant: application/json
+
+        - setHeader:
+            name: Content-Type
+            constant: application/json
+
+        - setHeader:
+            name: CamelHttpResponseCode
+            constant: "200"
+
+- route:
+    id: savings-account-route
+    from:
+      uri: direct:savings-account
+      steps:
+        - setHeader:
+            name: CamelHttpMethod
+            constant: GET
+
+        - setHeader:
+            name: x-correlation-id
+            simple: "${header.x-correlation-id}"
+
+        - toD:
+            uri: "{{endpoint.savings-account.url}}/${exchangeProperty.accountNumber}/retrieve?bridgeEndpoint=true&throwExceptionOnFailure=false&connectTimeout={{endpoint.connect.timeout}}&socketTimeout={{endpoint.socket.timeout}}"
+
+        - choice:
+            when:
+              - simple: "${header.CamelHttpResponseCode} == 200"
+                steps:
+                  - unmarshal:
+                      json:
+                        library: Jackson
+                        unmarshalType: java.util.Map
+
+                  - setProperty:
+                      name: accountFound
+                      constant: "true"
+
+                  - setProperty:
+                      name: accountIdentification
+                      simple: "${body[Account][AccountIdentification]}"
+
+                  - setProperty:
+                      name: accountTypeFromApi
+                      simple: "${body[Account][AccountType]}"
+
+                  - setProperty:
+                      name: accountStatus
+                      simple: "${body[Account][AccountStatus]}"
+
+                  - setProperty:
+                      name: partyId
+                      simple: "${body[Account][AccountInvolvedPartyReference]}"
+            otherwise:
+              steps:
+                - setProperty:
+                    name: accountFound
+                    constant: "false"
+
+- route:
+    id: current-account-route
+    from:
+      uri: direct:current-account
+      steps:
+        - setHeader:
+            name: CamelHttpMethod
+            constant: GET
+
+        - setHeader:
+            name: x-correlation-id
+            simple: "${header.x-correlation-id}"
+
+        - toD:
+            uri: "{{endpoint.current-account.url}}/${exchangeProperty.accountNumber}/retrieve?bridgeEndpoint=true&throwExceptionOnFailure=false&connectTimeout={{endpoint.connect.timeout}}&socketTimeout={{endpoint.socket.timeout}}"
+
+        - choice:
+            when:
+              - simple: "${header.CamelHttpResponseCode} == 200"
+                steps:
+                  - unmarshal:
+                      json:
+                        library: Jackson
+                        unmarshalType: java.util.Map
+
+                  - setProperty:
+                      name: accountFound
+                      constant: "true"
+
+                  - setProperty:
+                      name: accountIdentification
+                      simple: "${body[Account][AccountIdentification]}"
+
+                  - setProperty:
+                      name: accountTypeFromApi
+                      simple: "${body[Account][AccountType]}"
+
+                  - setProperty:
+                      name: accountStatus
+                      simple: "${body[Account][AccountStatus]}"
+
+                  - setProperty:
+                      name: partyId
+                      simple: "${body[Account][AccountInvolvedPartyReference]}"
+            otherwise:
+              steps:
+                - setProperty:
+                    name: accountFound
+                    constant: "false"
+
+- route:
+    id: party-directory-route
+    from:
+      uri: direct:party-directory
+      steps:
+        - setHeader:
+            name: CamelHttpMethod
+            constant: GET
+
+        - setHeader:
+            name: x-correlation-id
+            simple: "${header.x-correlation-id}"
+
+        - toD:
+            uri: "{{endpoint.party-data.url}}/${exchangeProperty.partyId}/retrieve?bridgeEndpoint=true&throwExceptionOnFailure=false&connectTimeout={{endpoint.connect.timeout}}&socketTimeout={{endpoint.socket.timeout}}"
+
+        - choice:
+            when:
+              - simple: "${header.CamelHttpResponseCode} == 200"
+                steps:
+                  - unmarshal:
+                      json:
+                        library: Jackson
+                        unmarshalType: java.util.Map
+
+                  - setProperty:
+                      name: partyIdentification
+                      simple: "${body[Party][PartyIdentification]}"
+
+                  - setProperty:
+                      name: partyName
+                      simple: "${body[Party][PartyName]}"
+
+                  - setProperty:
+                      name: partyTelephone
+                      simple: "${body[Party][ContactPoint][Telephone]}"
+
+                  - setProperty:
+                      name: partyEmail
+                      simple: "${body[Party][ContactPoint][Email]}"
+            otherwise:
+              steps:
+                - setBody:
+                    constant: '{"status": 500, "title": "Internal Server Error", "detail": "Failed to retrieve party information"}'
+                - setHeader:
+                    name: CamelHttpResponseCode
+                    constant: "500"
+                - setHeader:
+                    name: Content-Type
+                    constant: application/json
+                - stop: {}

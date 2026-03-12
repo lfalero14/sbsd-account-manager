@@ -1,0 +1,123 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    app.openshift.io/vcs-uri: <<unknown>>
+    app.quarkus.io/quarkus-version: 3.27.2.redhat-00001
+    app.quarkus.io/build-timestamp: 2026-03-12 - 19:55:52 +0000
+  labels:
+    app.kubernetes.io/name: app
+    app.kubernetes.io/version: 1.0.0
+    app.kubernetes.io/managed-by: quarkus
+    app.openshift.io/runtime: quarkus
+  name: app
+spec:
+  ports:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: 8080
+  selector:
+    app.kubernetes.io/name: app
+    app.kubernetes.io/version: 1.0.0
+  type: ClusterIP
+---
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  labels:
+    app.kubernetes.io/name: app
+    app.kubernetes.io/version: 1.0.0
+  name: openjdk-17
+spec:
+  dockerImageRepository: registry.access.redhat.com/ubi9/openjdk-17
+  lookupPolicy:
+    local: true
+---
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  annotations:
+    app.openshift.io/vcs-uri: <<unknown>>
+    app.quarkus.io/quarkus-version: 3.27.2.redhat-00001
+    app.quarkus.io/build-timestamp: 2026-03-12 - 19:55:52 +0000
+  labels:
+    app.kubernetes.io/name: app
+    app.kubernetes.io/version: 1.0.0
+    app.kubernetes.io/managed-by: quarkus
+    app.openshift.io/runtime: quarkus
+  name: app
+spec:
+  lookupPolicy:
+    local: true
+---
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  annotations:
+    app.openshift.io/vcs-uri: <<unknown>>
+    app.quarkus.io/quarkus-version: 3.27.2.redhat-00001
+    app.quarkus.io/build-timestamp: 2026-03-12 - 19:55:52 +0000
+  labels:
+    app.kubernetes.io/name: app
+    app.kubernetes.io/version: 1.0.0
+    app.kubernetes.io/managed-by: quarkus
+    app.openshift.io/runtime: quarkus
+  name: app
+spec:
+  output:
+    to:
+      kind: ImageStreamTag
+      name: app:1.0.0
+  source:
+    binary: {}
+  strategy:
+    sourceStrategy:
+      from:
+        kind: ImageStreamTag
+        name: openjdk-17:1.23
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    app.openshift.io/vcs-uri: <<unknown>>
+    app.quarkus.io/quarkus-version: 3.27.2.redhat-00001
+    app.quarkus.io/build-timestamp: 2026-03-12 - 19:55:52 +0000
+  labels:
+    app.kubernetes.io/managed-by: quarkus
+    app.openshift.io/runtime: quarkus
+    app.kubernetes.io/version: 1.0.0
+    app.kubernetes.io/name: app
+  name: app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/version: 1.0.0
+      app.kubernetes.io/name: app
+  template:
+    metadata:
+      annotations:
+        alpha.image.policy.openshift.io/resolve-names: '*'
+        app.openshift.io/vcs-uri: <<unknown>>
+        app.quarkus.io/quarkus-version: 3.27.2.redhat-00001
+        app.quarkus.io/build-timestamp: 2026-03-12 - 19:55:52 +0000
+      labels:
+        app.kubernetes.io/managed-by: quarkus
+        app.openshift.io/runtime: quarkus
+        app.kubernetes.io/version: 1.0.0
+        app.kubernetes.io/name: app
+    spec:
+      containers:
+        - env:
+            - name: JAVA_APP_JAR
+              value: /deployments/quarkus-run.jar
+          image: app:1.0.0
+          imagePullPolicy: Always
+          name: app
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
