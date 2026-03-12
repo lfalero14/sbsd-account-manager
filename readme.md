@@ -142,7 +142,8 @@ items:
         spec:
           containers:
             - name: sbsd-account-manager
-              image: "image-registry.openshift-image-registry.svc:5000/dev-mesh/sbsd-account-manager:1.0.0"
+              # image: "image-registry.openshift-image-registry.svc:5000/dev-mesh/sbsd-account-manager:1.0.0"
+              image: "quay.io/rh_ee_lfalero/sbsd-account-manager:1.0.0"
               imagePullPolicy: Always
               envFrom:
                 - configMapRef:
