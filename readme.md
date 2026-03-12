@@ -104,9 +104,9 @@ podman run --rm --name sbsd-account-manager -p 8080:8080 \
 ```
 
 ```bash
-REGISTRY="default-route-openshift-image-registry.apps.cluster-dljqk.dljqk.sandbox1321.opentlc.com"
-podman login -u $(oc whoami) -p $(oc whoami -t) ${REGISTRY}
-podman push sbsd-account-manager:1.0.0 ${REGISTRY}/dev-mesh/sbsd-account-manager:1.0.0
+# podman login -u $(oc whoami) -p $(oc whoami -t) ${REGISTRY}
+podman login -u ${REGISTRY_USER} -p ${REGISTRY_PASSWORD} ${REGISTRY_URL}
+podman push sbsd-account-manager:1.0.0 ${REGISTRY_URL}/atp/sbsd-account-manager:1.0.0
 ```
 
 ```yaml
@@ -118,7 +118,7 @@ items:
     apiVersion: v1
     metadata:
       name: sbsd-account-manager
-      namespace: dev-mesh
+      namespace: atp
     data:
       ENDPOINT_SAVINGS_ACCOUNT_URL: "http://host.docker.internal:3001/api/proxy/v1.0/prometeus/savings-account"
       ENDPOINT_CURRENT_ACCOUNT_URL: "http://host.docker.internal:3001/api/proxy/v1.0/prometeus/current-account"
@@ -128,7 +128,7 @@ items:
     kind: Deployment
     metadata:
       name: sbsd-account-manager
-      namespace: dev-mesh
+      namespace: atp
     spec:
       replicas: 1
       selector:
@@ -142,8 +142,8 @@ items:
         spec:
           containers:
             - name: sbsd-account-manager
-              # image: "image-registry.openshift-image-registry.svc:5000/dev-mesh/sbsd-account-manager:1.0.0"
-              image: "quay.io/rh_ee_lfalero/sbsd-account-manager:1.0.0"
+              image: "image-registry.openshift-image-registry.svc:5000/atp/sbsd-account-manager:1.0.0"
+              # image: "quay.io/rh_ee_lfalero/sbsd-account-manager:1.0.0"
               imagePullPolicy: Always
               envFrom:
                 - configMapRef:
@@ -152,7 +152,7 @@ items:
     kind: Service
     metadata:
       name: sbsd-account-manager
-      namespace: dev-mesh
+      namespace: atp
     spec:
       selector:
         app: sbsd-account-manager
@@ -166,7 +166,7 @@ items:
     apiVersion: route.openshift.io/v1
     metadata:
       name: sbsd-account-manager
-      namespace: dev-mesh
+      namespace: atp
     spec:
       to:
         kind: Service
@@ -177,4 +177,14 @@ items:
         termination: edge
         insecureEdgeTerminationPolicy: Redirect
       wildcardPolicy: None
+```
+
+Limpiar
+
+```bash
+oc -n atp delete ConfigMap sbsd-account-manager
+oc -n atp delete Deployment sbsd-account-manager
+oc -n atp delete Service sbsd-account-manager
+oc -n atp delete Route sbsd-account-manager
+oc -n atp delete ImageStream sbsd-account-manager
 ```
