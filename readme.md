@@ -73,7 +73,7 @@ Compilar Nativo:
 
 ```bash
 ./mvnw clean package -Dnative
-./app-1.0.0-runner
+./target/app-1.0.0-runner
 podman build -f src/main/docker/Dockerfile.native -t sbsd-account-manager:native .
 ```
 
@@ -119,7 +119,7 @@ items:
         spec:
           containers:
             - name: sbsd-account-manager
-              image: "image-registry.openshift-image-registry.svc:5000/atp/sbsd-account-manager:1.0.0"
+              image: "image-registry.openshift-image-registry.svc:5000/atp/sbsd-account-manager:jvm"
               # image: "quay.io/rh_ee_lfalero/sbsd-account-manager:1.0.0"
               imagePullPolicy: Always
               envFrom:
