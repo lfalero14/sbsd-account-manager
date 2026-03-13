@@ -1,64 +1,16 @@
-# How to build and run a Camel application
+# Quarkus Camel APP
 
-This project was generated using [Camel Jbang](https://camel.apache.org/manual/camel-jbang.html). Please, refer to the online documentation for learning more about how to configure the export of your Camel application.
-
-This is a brief guide explaining how to build, "containerize" and run your Camel application.
-
-## Build the Maven project (JVM mode)
+Instalación
 
 ```bash
-./mvnw clean package
+sudo dnf install java-21-openjdk java-21-openjdk-devel
+sudo dnf install maven
+echo 'export JAVA_HOME=/usr/lib/jvm/java-21-openjdk' >> ~/.bashrc
+echo 'export PATH=$JAVA_HOME/bin:$PATH' >> ~/.bashrc
+source ~/.bashrc
 ```
 
-The application could now immediately run:
-
-```bash
-java -jar target/quarkus-app/quarkus-run.jar
-```
-
-## Create a Docker container (JVM mode)
-
-You can create a container image directly from the `src/main/docker` resources. Here you have a precompiled base configuration which can be enhanced with any further required configuration.
-
-```bash
-docker build -f src/main/docker/Dockerfile -t app:1.0.0 .
-```
-
-Once the application is published, you can run it directly from the container:
-
-```bash
-docker run -it app:1.0.0
-```
-
-## Build the Maven project (Native mode)
-
-```bash
-./mvnw package -Dnative
-```
-
-Native compilation can last a few minutes to complete. Once done, the application could immediately run:
-
-```bash
-./app-1.0.0-runner
-```
-
-## Create a Docker container (Native mode)
-
-You can create a container image directly from the `src/main/docker` resources. Here you have a precompiled base configuration which can be enhanced with any further required configuration.
-
-```bash
-docker build -f src/main/docker/Dockerfile.native -t native-app:1.0.0 .
-```
-
-Once the application is published, you can run it directly from the container:
-
-```bash
-docker run -it native-app:1.0.0
-```
-
-# Nuevos Pasos
-
-Reemplazar groovy: **resource:classpath:aggregation.groovy** por groovy: **resource:file:aggregation.groovy**
+Compilación
 
 ```bash
 camel run routes.camel.yaml aggregation.groovy --properties=application.properties
@@ -66,6 +18,13 @@ camel run routes.camel.yaml aggregation.groovy --properties=application.properti
 
 ```bash
 curl -s http://localhost:8080/api/bs/v1.0/account-management/third-party-account-inquiry/123/retrieve | jq
+```
+
+En el **application.properties** considerar:
+
+```bash
+quarkus.package.jar.type=uber-jar
+quarkus.package.jar.add-runner-suffix=false
 ```
 
 ```bash
@@ -86,27 +45,45 @@ Reemplazar groovy: **resource:file:aggregation.groovy** por groovy: **resource:c
 mv src/main/resources/camel-groovy/aggregation.groovy src/main/resources/aggregation.groovy
 ```
 
+Variable:
+
 ```bash
-mvn clean package
-java -jar target/quarkus-app/quarkus-run.jar
-
-podman build -f src/main/docker/Dockerfile.jvm -t sbsd-account-manager:1.0.0 .
-
 ENDPOINT_SAVINGS_ACCOUNT_URL="http://host.docker.internal:3001/api/proxy/v1.0/prometeus/savings-account"
 ENDPOINT_CURRENT_ACCOUNT_URL="http://host.docker.internal:3001/api/proxy/v1.0/prometeus/current-account"
 ENDPOINT_PARTY_DATA_URL="http://host.docker.internal:3001/api/proxy/v1.0/prometeus/party-lifecycle-management"
+```
+
+Compilar JVW:
+
+```bash
+mvn clean package
+# java -jar target/quarkus-app/quarkus-run.jar
+java -jar target/app-1.0.0.jar
+
+podman build -f src/main/docker/Dockerfile -t sbsd-account-manager:jvm .
 
 podman run --rm --name sbsd-account-manager -p 8080:8080 \
   -e ENDPOINT_SAVINGS_ACCOUNT_URL="${ENDPOINT_SAVINGS_ACCOUNT_URL}" \
   -e ENDPOINT_CURRENT_ACCOUNT_URL="${ENDPOINT_CURRENT_ACCOUNT_URL}" \
   -e ENDPOINT_PARTY_DATA_URL="${ENDPOINT_SAVINGS_ACCOUNT_URL}" \
-  sbsd-account-manager:1.0.0
+  sbsd-account-manager:jvm
 ```
+
+Compilar Nativo:
+
+```bash
+./mvnw clean package -Dnative
+./app-1.0.0-runner
+podman build -f src/main/docker/Dockerfile.native -t sbsd-account-manager:native .
+```
+
+Publicar
 
 ```bash
 # podman login -u $(oc whoami) -p $(oc whoami -t) ${REGISTRY}
 podman login -u ${REGISTRY_USER} -p ${REGISTRY_PASSWORD} ${REGISTRY_URL}
-podman push sbsd-account-manager:1.0.0 ${REGISTRY_URL}/atp/sbsd-account-manager:1.0.0
+podman push sbsd-account-manager:jvm ${REGISTRY_URL}/atp/sbsd-account-manager:jvm
+podman push sbsd-account-manager:native ${REGISTRY_URL}/atp/sbsd-account-manager:native
 ```
 
 ```yaml
